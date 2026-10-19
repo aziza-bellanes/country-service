@@ -35,7 +35,7 @@ pipeline {
 
         stage('Package code') {
             steps {
-                sh 'mvn package'
+                sh 'mvn verify'
             }
         }
 
