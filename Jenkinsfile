@@ -61,5 +61,54 @@ pipeline {
             }
         }
 
+        
+        
+        stage('Deploy to Nexus') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'nexus-credentials',
+                        usernameVariable: 'NEXUS_USER',
+                        passwordVariable: 'NEXUS_PASS'
+                    )
+                ]) {
+                    sh '''
+                        set +x
+                        set -eu
+                        umask 077
+        
+                        SETTINGS_FILE=$(mktemp)
+                        trap 'rm -f "$SETTINGS_FILE"' EXIT
+                        export SETTINGS_FILE
+        
+                        python3 - <<'PY'
+        import os
+        import xml.etree.ElementTree as ET
+        
+        settings = ET.Element("settings", {
+            "xmlns": "http://maven.apache.org/SETTINGS/1.2.0"
+        })
+        
+        servers = ET.SubElement(settings, "servers")
+        server = ET.SubElement(servers, "server")
+        
+        ET.SubElement(server, "id").text = "nexus-snapshots"
+        ET.SubElement(server, "username").text = os.environ["NEXUS_USER"]
+        ET.SubElement(server, "password").text = os.environ["NEXUS_PASS"]
+        
+        ET.ElementTree(settings).write(
+            os.environ["SETTINGS_FILE"],
+            encoding="utf-8",
+            xml_declaration=True
+        )
+        PY
+        
+                        mvn -s "$SETTINGS_FILE" deploy -DskipTests
+                    '''
+                }
+            }
+        }
+
+
     }
 }
