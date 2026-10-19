@@ -16,26 +16,27 @@ pipeline {
 
         stage('Compile code') {
             steps {
-                bat 'mvn clean compile'
+                sh 'mvn compile'
             }
         }
 
         stage('Test code') {
             steps {
-                bat 'mvn test'
+                sh 'mvn test'
+            }
+
+            post {
+                success {
+                    junit allowEmptyResults: true,
+                          testResults: '**/target/surefire-reports/*.xml'
+                }
             }
         }
 
         stage('Package code') {
             steps {
-                bat 'mvn package -DskipTests'
+                sh 'mvn package'
             }
-        }
-    }
-
-    post {
-        always {
-            junit 'target/surefire-reports/*.xml'
         }
     }
 }
