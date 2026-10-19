@@ -61,8 +61,7 @@ pipeline {
             }
         }
 
-        
-        
+                
         stage('Deploy to Nexus') {
             steps {
                 withCredentials([
@@ -81,33 +80,14 @@ pipeline {
                         trap 'rm -f "$SETTINGS_FILE"' EXIT
                         export SETTINGS_FILE
         
-                        python3 - <<'PY'
-        import os
-        import xml.etree.ElementTree as ET
-        
-        settings = ET.Element("settings", {
-            "xmlns": "http://maven.apache.org/SETTINGS/1.2.0"
-        })
-        
-        servers = ET.SubElement(settings, "servers")
-        server = ET.SubElement(servers, "server")
-        
-        ET.SubElement(server, "id").text = "nexus-snapshots"
-        ET.SubElement(server, "username").text = os.environ["NEXUS_USER"]
-        ET.SubElement(server, "password").text = os.environ["NEXUS_PASS"]
-        
-        ET.ElementTree(settings).write(
-            os.environ["SETTINGS_FILE"],
-            encoding="utf-8",
-            xml_declaration=True
-        )
-        PY
+                        python3 -c 'import os, xml.etree.ElementTree as ET; root = ET.Element("settings", xmlns="http://maven.apache.org/SETTINGS/1.2.0"); server = ET.SubElement(ET.SubElement(root, "servers"), "server"); ET.SubElement(server, "id").text = "nexus-snapshots"; ET.SubElement(server, "username").text = os.environ["NEXUS_USER"]; ET.SubElement(server, "password").text = os.environ["NEXUS_PASS"]; ET.ElementTree(root).write(os.environ["SETTINGS_FILE"], encoding="utf-8", xml_declaration=True)'
         
                         mvn -s "$SETTINGS_FILE" deploy -DskipTests
                     '''
                 }
             }
         }
+
 
 
     }
