@@ -88,6 +88,50 @@ pipeline {
             }
         }
 
+        
+        stage('Publish Reports to Nexus') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'nexus-credentials',
+                        usernameVariable: 'NEXUS_USER',
+                        passwordVariable: 'NEXUS_PASS'
+                    )
+                ]) {
+                    sh '''
+                        set +x
+                        set -eu
+        
+                        REPO_URL="http://localhost:8081/repository/ci-reports"
+                        DEST="country-service/build-${BUILD_NUMBER}"
+        
+                        test -f target/site/jacoco/index.html
+                        test -f target/site/jacoco/jacoco.xml
+                        test -d target/surefire-reports
+
+                        find target/surefire-reports -name 'TEST-*.xml' -type f | grep -q .
+        
+                        find target/site/jacoco -type f | while IFS= read -r file; do
+                            relative_path=${file#target/site/jacoco/}
+                            curl --fail --silent --show-error \
+                                --user "$NEXUS_USER:$NEXUS_PASS" \
+                                --upload-file "$file" \
+                                "$REPO_URL/$DEST/jacoco/$relative_path"
+                        done
+        
+                        find target/surefire-reports -name '*.xml' -type f | while IFS= read -r file; do
+                            filename=${file##*/}
+                            curl --fail --silent --show-error \
+                                --user "$NEXUS_USER:$NEXUS_PASS" \
+                                --upload-file "$file" \
+                                "$REPO_URL/$DEST/surefire/$filename"
+                        done
+                    '''
+                }
+            }
+        }
+
+
 
 
     }
