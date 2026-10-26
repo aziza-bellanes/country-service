@@ -45,6 +45,9 @@ pipeline {
                         sh '''
                             kubectl apply -f deployment.yaml
                             kubectl apply -f service.yaml
+                            kubectl set image deployment/my-country-service \
+                              country-service-container=zaabella/my-country-service:$BUILD_NUMBER
+                            kubectl rollout status deployment/my-country-service --timeout=180s
                         '''
                     }
                 }
