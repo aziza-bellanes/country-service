@@ -1,0 +1,54 @@
+
+pipeline {
+    agent any
+
+    tools {
+        maven 'Maven'
+    }
+
+    stages {
+        stage('Checkout code') {
+            steps {
+                git branch: 'main',
+                    credentialsId: 'github-credentials',
+                    url: 'https://github.com/aziza-bellanes/country-service.git'
+            }
+        }
+
+        stage('Build maven') {
+            steps {
+                sh 'mvn clean install'
+            }
+        }
+
+        stage('Build Dockerfile') {
+            steps {
+                sh 'docker build -t my-country-service:$BUILD_NUMBER .'
+
+                withCredentials([string(
+                    credentialsId: 'dockerhub-pwd',
+                    variable: 'DOCKERHUB_TOKEN'
+                )]) {
+                    sh '''
+                        echo "$DOCKERHUB_TOKEN" | docker login -u zaabella --password-stdin
+                        docker tag my-country-service:$BUILD_NUMBER zaabella/my-country-service:$BUILD_NUMBER
+                        docker push zaabella/my-country-service:$BUILD_NUMBER
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    kubeconfig(credentialsId: 'kubeconfig-file') {
+                        sh '''
+                            kubectl apply -f deployment.yaml
+                            kubectl apply -f service.yaml
+                        '''
+                    }
+                }
+            }
+        }
+    }
+}
