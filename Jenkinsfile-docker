@@ -1,0 +1,96 @@
+
+pipeline {
+    agent any
+
+    tools {
+        maven 'Maven'
+    }
+
+    triggers {
+        githubPush()
+    }
+
+    environment {
+        DOCKERHUB_USER = 'zaabella'
+        IMAGE = "${DOCKERHUB_USER}/my-country-service"
+    }
+
+    stages {
+        stage('Checkout code') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/aziza-bellanes/country-service.git'
+            }
+        }
+
+        stage('Build Maven Project') {
+            steps {
+                sh 'mvn clean install'
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true,
+                          testResults: '**/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t $IMAGE:$BUILD_NUMBER -t $IMAGE:latest .'
+            }
+        }
+
+        stage('Test Docker Image') {
+            steps {
+                sh '''
+                    docker rm -f country-service-test || true
+                    docker run -d --name country-service-test \
+                        -e SPRING_PROFILES_ACTIVE=default \
+                        -p 8087:8082 $IMAGE:$BUILD_NUMBER
+                '''
+
+                retry(12) {
+                    sleep 5
+                    sh 'curl -sf http://localhost:8087/getcountries'
+                }
+            }
+            post {
+                always {
+                    sh 'docker rm -f country-service-test || true'
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'dockerhub-pwd',
+                           variable: 'dockerhubpwd')
+                ]) {
+                    sh '''
+                        set +x
+                        echo "$dockerhubpwd" | docker login -u "$DOCKERHUB_USER" --password-stdin
+                        docker push $IMAGE:$BUILD_NUMBER
+                        docker push $IMAGE:latest
+                    '''
+                }
+            }
+            post {
+                always {
+                    sh 'docker logout || true'
+                }
+            }
+        }
+
+        stage('Deploy micro-service') {
+            steps {
+                sh '''
+                    docker rm -f country-service-deploy || true
+                    docker run -d --name country-service-deploy \
+                        -p 8088:8082 $IMAGE:$BUILD_NUMBER
+                '''
+            }
+        }
+    }
+}
