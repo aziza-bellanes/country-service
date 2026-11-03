@@ -21,18 +21,29 @@ pipeline {
             }
         }
 
+        
         stage('Deploy using Ansible playbook') {
             steps {
                 withCredentials([
-                    string(credentialsId: 'dockerhub-pwd', variable: 'DOCKERHUB_TOKEN'),
+                    string(credentialsId: 'ansible-vault-password', variable: 'ANSIBLE_VAULT_PASSWORD'),
                     file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')
                 ]) {
                     sh '''
-                        ansible-playbook -i 'localhost,' -c local playbookCICD.yml
+                        set -e
+                        umask 077
+                        VAULT_PASS_FILE=$(mktemp)
+                        trap 'rm -f "$VAULT_PASS_FILE"' EXIT
+
+                        printf '%s' "$ANSIBLE_VAULT_PASSWORD" > "$VAULT_PASS_FILE"
+
+                        ansible-playbook -i 'localhost,' -c local \
+                          playbookCICD.yml \
+                          --vault-password-file "$VAULT_PASS_FILE"
                     '''
                 }
             }
         }
+
     }
 
     post {
