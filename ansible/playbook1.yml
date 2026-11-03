@@ -1,0 +1,6 @@
+---
+- hosts: localhost
+  tasks:
+    - name: Afficher un message
+      debug:
+        msg: "Bonjour depuis Ansible!"

@@ -1,0 +1,49 @@
+
+pipeline {
+    agent any
+
+    tools {
+        maven 'Maven'
+    }
+
+    stages {
+        stage('Checkout code') {
+            steps {
+                git branch: 'main',
+                    credentialsId: 'github-credentials',
+                    url: 'https://github.com/aziza-bellanes/country-service.git'
+            }
+        }
+
+        stage('Build maven') {
+            steps {
+                sh 'mvn clean install'
+            }
+        }
+
+        stage('Deploy using Ansible playbook') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'dockerhub-pwd', variable: 'DOCKERHUB_TOKEN'),
+                    file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')
+                ]) {
+                    sh '''
+                        ansible-playbook -i 'localhost,' -c local playbookCICD.yml
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo 'Ansible playbook executed successfully!'
+        }
+        failure {
+            echo 'Ansible playbook execution failed!'
+        }
+    }
+}
